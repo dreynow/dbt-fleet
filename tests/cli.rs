@@ -62,12 +62,44 @@ fn check_without_manifest_emits_helpful_error() {
 }
 
 #[test]
-fn score_subcommand_still_stub() {
+fn score_without_manifest_emits_helpful_error() {
+    let tempdir = tempfile::tempdir().unwrap();
     Command::cargo_bin("dbt-fleet")
         .unwrap()
         .arg("score")
+        .arg("--project")
+        .arg(tempdir.path())
         .assert()
         .failure()
         .code(2)
-        .stderr(predicate::str::contains("not implemented yet"));
+        .stderr(predicate::str::contains("No manifest.json found"));
+}
+
+#[test]
+fn trend_with_no_history_says_so() {
+    let tempdir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("dbt-fleet")
+        .unwrap()
+        .arg("trend")
+        .arg("--project")
+        .arg(tempdir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No history yet"));
+}
+
+#[test]
+fn trend_demo_seeds_synthetic_history() {
+    let tempdir = tempfile::tempdir().unwrap();
+    Command::cargo_bin("dbt-fleet")
+        .unwrap()
+        .arg("trend")
+        .arg("--project")
+        .arg(tempdir.path())
+        .arg("--demo")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Overall"))
+        .stdout(predicate::str::contains("Ownership"))
+        .stdout(predicate::str::contains("\u{2588}")); // bar character
 }

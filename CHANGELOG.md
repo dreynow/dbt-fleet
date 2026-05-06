@@ -7,15 +7,28 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Planned for v0.0.3
+### Planned for v0.2.0
 - Third policy: breaking-change detection (compare two manifests)
 - Per-model inventory table in HTML report (owner / docs / tests at a glance)
+- HTML report sparkline section showing recent trend
+- GitHub Action template for PR comments
 
-### Planned for v0.1.0
-- `dbt-fleet score` computes ownership %, doc %, test %
-- `dbt-fleet trend` ASCII chart + sparkline section in HTML
-- `--demo` mode synthesizes 90 days of history for launch screenshots
-- `.dbt-fleet/history.json` (gitignored by default)
+## [0.1.0] — 2026-05-06
+
+The first version with the trending feature — the headline differentiator.
+
+### Added
+- `dbt-fleet score` — computes a `ScoreSnapshot` from the check report and
+  appends it to `<project>/.dbt-fleet/history.json`. Three percentages:
+  ownership %, descriptions %, overall (unweighted mean).
+- `dbt-fleet trend` — renders the score history as an ASCII bar chart in
+  the terminal. Three series (overall / ownership / descriptions) with a
+  trend-arrow summary at the bottom (`\u{2191}` 55.0% \u{2192} 91.8% +36.8pp).
+- `dbt-fleet trend --demo` — replaces history with 90 days of plausible
+  synthesized snapshots. Used for README screenshots and launch posts before
+  any real history exists. Deterministic across runs.
+- `.dbt-fleet/history.json` is gitignored by default (the user opts in to
+  commit it).
 
 ## [0.0.2] — 2026-05-06
 

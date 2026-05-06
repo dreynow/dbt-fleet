@@ -37,15 +37,21 @@ enum Command {
         #[arg(long)]
         output: Option<PathBuf>,
     },
-    /// Compute and persist a governance score for the project. (Coming in v0.0.4.)
+    /// Compute a governance score and append it to .dbt-fleet/history.json.
     Score {
+        /// Path to the dbt project root. Defaults to current directory.
         #[arg(long, default_value = ".")]
         project: PathBuf,
     },
-    /// Render the score history as a trend chart. (Coming in v0.0.4.)
+    /// Render the score history as a trend chart in the terminal.
     Trend {
+        /// Path to the dbt project root. Defaults to current directory.
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// Replace history with 90 days of synthesized snapshots. Useful for
+        /// README screenshots and launch posts before real history exists.
+        #[arg(long)]
+        demo: bool,
     },
 }
 
@@ -89,17 +95,64 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
-        Some(Command::Score { project }) | Some(Command::Trend { project }) => {
-            eprintln!(
-                "dbt-fleet {}: this command is not implemented yet.",
-                dbt_fleet::VERSION
-            );
-            eprintln!("Project path was: {}", project.display());
-            eprintln!();
-            eprintln!("Track v0.1 progress at https://github.com/dreynow/dbt-fleet");
-            ExitCode::from(2)
-        }
+        Some(Command::Score { project }) => match run_score(&project) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("dbt-fleet score failed: {:#}", e);
+                ExitCode::from(2)
+            }
+        },
+        Some(Command::Trend { project, demo }) => match run_trend(&project, demo) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("dbt-fleet trend failed: {:#}", e);
+                ExitCode::from(2)
+            }
+        },
     }
+}
+
+fn run_score(project: &Path) -> Result<()> {
+    let report = dbt_fleet::check::run(project)?;
+    let manifest = dbt_fleet::manifest::Manifest::find(project)?;
+    let tiers = dbt_fleet::tier::TierConfig::load(project)?;
+    let snapshot = dbt_fleet::score::ScoreSnapshot::compute(&report, &manifest, &tiers);
+    let history = dbt_fleet::history::History::append(project, snapshot.clone())?;
+
+    println!("dbt-fleet {}", dbt_fleet::VERSION);
+    println!();
+    println!(
+        "Snapshot recorded ({} total in history):",
+        history.snapshots.len()
+    );
+    println!("  Timestamp:   {}", snapshot.timestamp);
+    println!("  Overall:     {:.1}%", snapshot.overall_pct);
+    println!(
+        "  Ownership:   {:.1}% ({} tier-1 models)",
+        snapshot.ownership_pct, snapshot.tier1_models
+    );
+    println!(
+        "  Descriptions: {:.1}% ({} columns)",
+        snapshot.description_pct, snapshot.total_columns
+    );
+    Ok(())
+}
+
+fn run_trend(project: &Path, demo: bool) -> Result<()> {
+    if demo {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let synthetic = dbt_fleet::demo::synthesize(now, 90);
+        dbt_fleet::history::History::replace(project, synthetic)?;
+        eprintln!("Replaced history with 90 days of synthesized snapshots.");
+        eprintln!();
+    }
+    let history = dbt_fleet::history::History::load(project)?;
+    print!("{}", dbt_fleet::render::trend::render(&history));
+    Ok(())
 }
 
 fn emit(report: &CheckReport, format: OutputFormat, output: Option<&Path>) -> Result<()> {
