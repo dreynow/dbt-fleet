@@ -13,6 +13,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - HTML report sparkline section showing recent trend
 - GitHub Action variant that posts the report as a PR comment
 
+## [0.1.2] — 2026-05-06
+
+### Added
+- **Python distribution** under `python/` in this repo. `pip install dbt-fleet`
+  now installs a thin launcher that downloads the matching Rust binary from
+  the GitHub Release on first run, caches it under `~/.cache/dbt-fleet/v<ver>/`,
+  verifies the SHA-256, and execs it. Subsequent runs are sub-50ms (cache hit).
+- Supported platforms via `pip`: linux x86_64/aarch64, macOS x86_64/aarch64,
+  windows x86_64.
+- Environment overrides: `DBT_FLEET_BINARY=/path/to/binary` (skip download),
+  `DBT_FLEET_CACHE_DIR=/custom/path` (override cache root).
+- 19 unit tests covering platform mapping, cache layout, checksum parsing
+  (handles directory prefix from our release pipeline), archive extraction
+  with path-traversal protection, env override.
+
 ## [0.1.1] — 2026-05-06
 
 ### Added

@@ -9,7 +9,12 @@
 # Local agent state
 .claude/
 
-# Squat-stub artifacts (never push real)
-/dist/
-/build/
-*.egg-info/
+# Python build artifacts
+**/dist/
+**/build/
+**/*.egg-info/
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+**/.mypy_cache/
+**/.ruff_cache/

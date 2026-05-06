@@ -40,15 +40,24 @@ No database. No SaaS account. No sign-up. One YAML file of config, max.
 
 ## Install
 
-**Cargo (recommended for now):**
+**pip (recommended — wraps the Rust binary):**
+
+```bash
+pip install dbt-fleet
+dbt-fleet --version
+```
+
+The Python package is a thin launcher: on first run it downloads the right binary for your OS/arch from the matching GitHub Release and caches it under `~/.cache/dbt-fleet/`. No Python at runtime.
+
+**Cargo:**
 
 ```bash
 cargo install dbt-fleet
 ```
 
-**Direct download:** grab the binary for your platform from the [latest release](https://github.com/dreynow/dbt-fleet/releases/latest), unpack, and put `dbt-fleet` on your PATH.
+**Direct download:** grab the archive for your platform from the [latest release](https://github.com/dreynow/dbt-fleet/releases/latest), unpack, and put `dbt-fleet` on your PATH.
 
-A one-line installer script and Homebrew tap are planned for v0.2.
+A Homebrew tap and one-line shell installer are planned for v0.2.
 
 ## Quick start
 
