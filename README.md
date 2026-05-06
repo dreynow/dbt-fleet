@@ -112,7 +112,7 @@ jobs:
           pip install dbt-postgres
           dbt parse
 
-      - uses: dreynow/dbt-fleet@v0.1.0
+      - uses: dreynow/dbt-fleet@v0.1.1
         with:
           project: '.'
           format: 'html'

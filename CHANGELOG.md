@@ -11,7 +11,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Third policy: breaking-change detection (compare two manifests)
 - Per-model inventory table in HTML report (owner / docs / tests at a glance)
 - HTML report sparkline section showing recent trend
-- GitHub Action template for PR comments
+- GitHub Action variant that posts the report as a PR comment
+
+## [0.1.1] — 2026-05-06
+
+### Added
+- Composite GitHub Action at the repo root (`action.yml`) so users can
+  drop `uses: dreynow/dbt-fleet@v0.1.1` into their dbt repo's CI. Auto-detects
+  the runner's OS/arch, downloads the matching binary from GitHub Releases,
+  runs `dbt-fleet check`, exposes `report-path` and `exit-code` outputs.
+- README revamped: trend screenshot front-and-centre, real quick-start,
+  comparison table vs Elementary / project-evaluator / Atlan, roadmap
+  through v0.4.
 
 ## [0.1.0] — 2026-05-06
 
