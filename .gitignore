@@ -1,0 +1,16 @@
+/target
+**/*.rs.bk
+Cargo.lock
+.DS_Store
+.idea/
+.vscode/
+.env
+*.log
+
+# Local agent state
+.claude/
+
+# Squat-stub artifacts (never push real)
+/dist/
+/build/
+*.egg-info/
