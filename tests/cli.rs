@@ -47,10 +47,25 @@ fn no_args_prints_pitch() {
 }
 
 #[test]
-fn check_subcommand_exits_with_not_implemented() {
+fn check_without_manifest_emits_helpful_error() {
+    let tempdir = tempfile::tempdir().unwrap();
     Command::cargo_bin("dbt-fleet")
         .unwrap()
         .arg("check")
+        .arg("--project")
+        .arg(tempdir.path())
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("No manifest.json found"))
+        .stderr(predicate::str::contains("dbt parse"));
+}
+
+#[test]
+fn score_subcommand_still_stub() {
+    Command::cargo_bin("dbt-fleet")
+        .unwrap()
+        .arg("score")
         .assert()
         .failure()
         .code(2)

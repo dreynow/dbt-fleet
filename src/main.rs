@@ -1,4 +1,9 @@
-use clap::{Parser, Subcommand};
+use anyhow::Result;
+use clap::{Parser, Subcommand, ValueEnum};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use dbt_fleet::check::CheckReport;
 
 #[derive(Parser)]
 #[command(
@@ -20,25 +25,38 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Run governance policy checks against a dbt project. (Coming in v0.0.2.)
+    /// Run governance policy checks against a dbt project.
     Check {
         /// Path to the dbt project root. Defaults to current directory.
         #[arg(long, default_value = ".")]
-        project: String,
+        project: PathBuf,
+        /// Output format.
+        #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
+        format: OutputFormat,
+        /// Write the report to a file instead of stdout. Required for --format html.
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     /// Compute and persist a governance score for the project. (Coming in v0.0.4.)
     Score {
         #[arg(long, default_value = ".")]
-        project: String,
+        project: PathBuf,
     },
     /// Render the score history as a trend chart. (Coming in v0.0.4.)
     Trend {
         #[arg(long, default_value = ".")]
-        project: String,
+        project: PathBuf,
     },
 }
 
-fn main() {
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum OutputFormat {
+    Human,
+    Json,
+    Html,
+}
+
+fn main() -> ExitCode {
     let cli = Cli::parse();
 
     match cli.command {
@@ -48,18 +66,66 @@ fn main() {
             println!("Governance scoring and trends for dbt projects.");
             println!();
             println!("Run `dbt-fleet --help` to see available commands.");
+            ExitCode::SUCCESS
         }
-        Some(Command::Check { project })
-        | Some(Command::Score { project })
-        | Some(Command::Trend { project }) => {
+        Some(Command::Check {
+            project,
+            format,
+            output,
+        }) => match dbt_fleet::check::run(&project) {
+            Ok(report) => {
+                if let Err(e) = emit(&report, format, output.as_deref()) {
+                    eprintln!("Failed to write output: {:#}", e);
+                    return ExitCode::from(2);
+                }
+                if report.passed() {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => {
+                eprintln!("dbt-fleet check failed: {:#}", e);
+                ExitCode::from(2)
+            }
+        },
+        Some(Command::Score { project }) | Some(Command::Trend { project }) => {
             eprintln!(
                 "dbt-fleet {}: this command is not implemented yet.",
                 dbt_fleet::VERSION
             );
-            eprintln!("Project path was: {}", project);
+            eprintln!("Project path was: {}", project.display());
             eprintln!();
             eprintln!("Track v0.1 progress at https://github.com/dreynow/dbt-fleet");
-            std::process::exit(2);
+            ExitCode::from(2)
         }
     }
+}
+
+fn emit(report: &CheckReport, format: OutputFormat, output: Option<&Path>) -> Result<()> {
+    let rendered: String = match format {
+        OutputFormat::Human => {
+            // Human format prints to stdout directly with its own formatter.
+            // If --output was set, capture into a string instead.
+            if output.is_some() {
+                let mut buf = String::new();
+                dbt_fleet::check::write_human(report, &mut buf)?;
+                buf
+            } else {
+                dbt_fleet::check::print_human(report);
+                return Ok(());
+            }
+        }
+        OutputFormat::Json => serde_json::to_string_pretty(report)?,
+        OutputFormat::Html => dbt_fleet::render::html::render(report),
+    };
+
+    match output {
+        Some(path) => {
+            std::fs::write(path, rendered.as_bytes())?;
+            eprintln!("Wrote report to {}", path.display());
+        }
+        None => print!("{}", rendered),
+    }
+    Ok(())
 }

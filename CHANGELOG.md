@@ -7,11 +7,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Planned for v0.0.2
-- `dbt-fleet check` parses `manifest.json`
-- First three policies: tier-1 ownership, tier-1 column descriptions, breaking-change detection
-- JSON output + non-zero exit on violation
-- Tier configuration via `.dbt-fleet/tiers.yaml`
+### Planned for v0.0.3
+- Third policy: breaking-change detection (compare two manifests)
+- Per-model inventory table in HTML report (owner / docs / tests at a glance)
+
+### Planned for v0.1.0
+- `dbt-fleet score` computes ownership %, doc %, test %
+- `dbt-fleet trend` ASCII chart + sparkline section in HTML
+- `--demo` mode synthesizes 90 days of history for launch screenshots
+- `.dbt-fleet/history.json` (gitignored by default)
+
+## [0.0.2] — 2026-05-06
+
+### Added
+- `dbt-fleet check` actually checks. Parses `target/manifest.json` from a dbt
+  project root (looks for `<project>/target/manifest.json` by default).
+- Tier-1 classification with sane default (`models/marts/**`) and override
+  via `.dbt-fleet/tiers.yaml` (path globs and/or meta-key matching).
+- Two policies:
+  - `tier_1_has_owner` — every tier-1 model must declare `meta.owner`
+    (top-level or nested under `config.meta`), non-empty after trim.
+  - `tier_1_columns_described` — every column needs a description \u{2265} 10
+    chars, with placeholder rejection ("TBD", "TODO", "?", etc).
+- Three output formats: `--format human` (default), `--format json`,
+  `--format html` (self-contained single-file report, ~6 KB, no external assets).
+- `--output <path>` writes to a file instead of stdout.
+- Exit code: 0 when all policies pass, 1 on violations, 2 on errors.
+
+### Verified
+- Real dbt manifest parsed cleanly (`tutorials/dbt-quickstart` fixture).
+- 17 unit tests + 6 CLI tests, all passing on linux/mac/windows.
 
 ## [0.0.1] — 2026-05-09
 
