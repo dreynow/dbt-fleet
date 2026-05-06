@@ -1,0 +1,115 @@
+name: dbt-fleet
+description: 'Governance scoring and trends for dbt projects. Runs dbt-fleet check in CI and writes the report.'
+author: 'Dare Sunday'
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  project:
+    description: 'Path to the dbt project root (containing target/manifest.json).'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format: human, json, or html.'
+    required: false
+    default: 'html'
+  output:
+    description: 'Path to write the report to. Required when format is html or json.'
+    required: false
+    default: 'dbt-fleet-report.html'
+  version:
+    description: 'dbt-fleet version to install (e.g. v0.1.0). Defaults to latest.'
+    required: false
+    default: 'latest'
+  fail-on-violation:
+    description: 'Fail the action on policy violations. Default: true.'
+    required: false
+    default: 'true'
+
+outputs:
+  report-path:
+    description: 'Path to the rendered report.'
+    value: ${{ inputs.output }}
+  exit-code:
+    description: 'dbt-fleet check exit code (0 pass, 1 violations, 2 error).'
+    value: ${{ steps.run.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Resolve runner platform
+      id: platform
+      shell: bash
+      run: |
+        set -euo pipefail
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)   target=x86_64-unknown-linux-gnu  ; archive=tar.gz ;;
+          Linux-ARM64) target=aarch64-unknown-linux-gnu ; archive=tar.gz ;;
+          macOS-X64)   target=x86_64-apple-darwin       ; archive=tar.gz ;;
+          macOS-ARM64) target=aarch64-apple-darwin      ; archive=tar.gz ;;
+          Windows-X64) target=x86_64-pc-windows-msvc    ; archive=zip ;;
+          *) echo "Unsupported platform: ${RUNNER_OS}-${RUNNER_ARCH}" >&2; exit 1 ;;
+        esac
+        echo "target=$target"   >> "$GITHUB_OUTPUT"
+        echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+    - name: Resolve dbt-fleet version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${{ inputs.version }}" == "latest" ]]; then
+          v=$(curl -sSL -H "Accept: application/vnd.github+json" \
+                 "https://api.github.com/repos/dreynow/dbt-fleet/releases/latest" \
+                 | grep -oE '"tag_name":\s*"[^"]+"' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [[ -z "$v" ]]; then
+            echo "Failed to resolve latest dbt-fleet release" >&2
+            exit 1
+          fi
+        else
+          v="${{ inputs.version }}"
+        fi
+        echo "tag=$v" >> "$GITHUB_OUTPUT"
+
+    - name: Download dbt-fleet binary
+      shell: bash
+      run: |
+        set -euo pipefail
+        TAG="${{ steps.version.outputs.tag }}"
+        TARGET="${{ steps.platform.outputs.target }}"
+        ARCHIVE="${{ steps.platform.outputs.archive }}"
+        STAGE="dbt-fleet-${TAG}-${TARGET}"
+        URL="https://github.com/dreynow/dbt-fleet/releases/download/${TAG}/${STAGE}.${ARCHIVE}"
+
+        echo "Fetching $URL"
+        mkdir -p "$RUNNER_TEMP/dbt-fleet"
+        cd "$RUNNER_TEMP/dbt-fleet"
+        curl -sSL --fail "$URL" -o "asset.${ARCHIVE}"
+
+        if [[ "$ARCHIVE" == "zip" ]]; then
+          unzip -q "asset.${ARCHIVE}"
+        else
+          tar -xzf "asset.${ARCHIVE}"
+        fi
+
+        BIN="$RUNNER_TEMP/dbt-fleet/${STAGE}/dbt-fleet"
+        [[ "$RUNNER_OS" == "Windows" ]] && BIN="${BIN}.exe"
+        chmod +x "$BIN" || true
+        echo "$RUNNER_TEMP/dbt-fleet/${STAGE}" >> "$GITHUB_PATH"
+
+    - name: Run dbt-fleet check
+      id: run
+      shell: bash
+      run: |
+        set +e
+        dbt-fleet check \
+          --project "${{ inputs.project }}" \
+          --format "${{ inputs.format }}" \
+          --output "${{ inputs.output }}"
+        code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        if [[ "${{ inputs.fail-on-violation }}" == "true" && "$code" -ne 0 ]]; then
+          exit "$code"
+        fi
+        exit 0
