@@ -1,0 +1,103 @@
+name: Release
+
+# Triggered by pushing a `v*` tag (e.g. `git tag v0.0.1 && git push origin v0.0.1`).
+# Builds binaries for linux/macos/windows × x86_64/aarch64 and uploads them to
+# the GitHub Release. The release itself is created on the first matrix job that
+# completes; subsequent jobs upload to the same release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write  # needed to create the GitHub Release
+
+env:
+  CARGO_TERM_COLOR: always
+  CRATE_NAME: dbt-fleet
+  BIN_NAME: dbt-fleet
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+            cross: true
+          - target: x86_64-apple-darwin
+            os: macos-13
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+            ext: .exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross (linux aarch64 only)
+        if: matrix.cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build (cargo)
+        if: '!matrix.cross'
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="${CRATE_NAME}-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/${STAGE}"
+          cp "target/${{ matrix.target }}/release/${BIN_NAME}${{ matrix.ext }}" "dist/${STAGE}/"
+          cp README.md LICENSE "dist/${STAGE}/"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            (cd dist && 7z a "${STAGE}.zip" "${STAGE}")
+            echo "ASSET=dist/${STAGE}.zip" >> "$GITHUB_ENV"
+          else
+            tar -C dist -czf "dist/${STAGE}.tar.gz" "${STAGE}"
+            echo "ASSET=dist/${STAGE}.tar.gz" >> "$GITHUB_ENV"
+          fi
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$ASSET" > "$ASSET.sha256"
+          else
+            shasum -a 256 "$ASSET" > "$ASSET.sha256"
+          fi
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
+          generate_release_notes: true
+          fail_on_unmatched_files: true
